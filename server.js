@@ -6,10 +6,9 @@ require('dotenv').config();
 const app = express();
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 } // 限制 20MB
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-// 啟用 CORS - 允許前端訪問
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -18,7 +17,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 
-// 健康檢查
 app.get('/', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -27,7 +25,6 @@ app.get('/', (req, res) => {
   });
 });
 
-// 測試 API 連接
 app.post('/api/test', async (req, res) => {
   try {
     const { apiKey, apiType, model, baseURL } = req.body;
@@ -41,10 +38,7 @@ app.post('/api/test', async (req, res) => {
       return res.json(result);
     } else if (apiType === 'custom') {
       if (!baseURL) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '自定義 API 需要提供 API 基礎 URL' 
-        });
+        return res.status(400).json({ success: false, message: '自定義 API 需要提供 API 基礎 URL' });
       }
       const result = await testCustomConnection(apiKey, baseURL, model);
       return res.json(result);
@@ -52,22 +46,15 @@ app.post('/api/test', async (req, res) => {
       const result = await testOpenAIConnection(apiKey, model);
       return res.json(result);
     } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: '未知的 API 類型: ' + apiType 
-      });
+      return res.status(400).json({ success: false, message: '未知的 API 類型: ' + apiType });
     }
   } catch (error) {
     console.error('Test API error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || '測試失敗'
-    });
+    res.status(500).json({ success: false, message: error.message || '測試失敗' });
   }
 });
 
-// OCR 提取文字
-app.post('/api/extract', upload.single('file'), async (req, res) => {
+app.post('/api/extract', async (req, res) => {
   try {
     const { apiKey, apiType, model, baseURL, fileType, fileData, text } = req.body;
     
@@ -79,48 +66,29 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
       return res.status(400).json({ success: false, message: '沒有提供文件或文字' });
     }
 
-    // 檢查文件大小（base64 大小約為原始大小的 4/3）
-    if (fileData) {
-      const estimatedSize = (fileData.length * 3) / 4; // base64 解碼後的估計大小
-      if (estimatedSize > 10 * 1024 * 1024) { // 10MB 限制
-        return res.status(400).json({ 
-          success: false, 
-          message: '文件太大，請上傳小於 10MB 的文件' 
-        });
-      }
-    }
+    console.log('Extract request:', { apiType, fileType, hasFileData: !!fileData, hasText: !!text });
 
     let result;
     if (apiType === 'gemini') {
       result = await extractWithGemini(apiKey, model, fileData, text, fileType);
     } else if (apiType === 'custom') {
       if (!baseURL) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '自定義 API 需要提供 API 基礎 URL' 
-        });
+        return res.status(400).json({ success: false, message: '自定義 API 需要提供 API 基礎 URL' });
       }
       result = await extractWithCustom(apiKey, baseURL, model, fileData, text, fileType);
     } else if (apiType === 'openai') {
       result = await extractWithOpenAI(apiKey, model, fileData, text, fileType);
     } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: '未知的 API 類型: ' + apiType 
-      });
+      return res.status(400).json({ success: false, message: '未知的 API 類型: ' + apiType });
     }
 
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Extract error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || '提取失敗'
-    });
+    res.status(500).json({ success: false, message: error.message || '提取失敗' });
   }
 });
 
-// 批改作文
 app.post('/api/grade', async (req, res) => {
   try {
     const { apiKey, apiType, model, baseURL, essayText, question, customCriteria } = req.body;
@@ -133,8 +101,7 @@ app.post('/api/grade', async (req, res) => {
       return res.status(400).json({ success: false, message: '作文內容不能為空' });
     }
 
-    // 限制作文長度，避免 Token 超限
-    const maxLength = 15000; // 約 5000 個中文字
+    const maxLength = 15000;
     const truncatedText = essayText.length > maxLength 
       ? essayText.substring(0, maxLength) + '\n\n[文章過長，已截斷]' 
       : essayText;
@@ -144,32 +111,22 @@ app.post('/api/grade', async (req, res) => {
       result = await gradeWithGemini(apiKey, model, truncatedText, question, customCriteria);
     } else if (apiType === 'custom') {
       if (!baseURL) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '自定義 API 需要提供 API 基礎 URL' 
-        });
+        return res.status(400).json({ success: false, message: '自定義 API 需要提供 API 基礎 URL' });
       }
       result = await gradeWithCustom(apiKey, baseURL, model, truncatedText, question, customCriteria);
     } else if (apiType === 'openai') {
       result = await gradeWithOpenAI(apiKey, model, truncatedText, question, customCriteria);
     } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: '未知的 API 類型: ' + apiType 
-      });
+      return res.status(400).json({ success: false, message: '未知的 API 類型: ' + apiType });
     }
 
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Grade error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || '批改失敗'
-    });
+    res.status(500).json({ success: false, message: error.message || '批改失敗' });
   }
 });
 
-// 全班分析
 app.post('/api/analyze-class', async (req, res) => {
   try {
     const { apiKey, apiType, model, baseURL, reports, question } = req.body;
@@ -178,7 +135,6 @@ app.post('/api/analyze-class', async (req, res) => {
       return res.status(400).json({ success: false, message: 'API 密鑰不能為空' });
     }
 
-    // 限制報告數量，避免 Token 超限
     const maxReports = 30;
     const limitedReports = reports.slice(0, maxReports);
 
@@ -187,64 +143,37 @@ app.post('/api/analyze-class', async (req, res) => {
       result = await analyzeClassWithGemini(apiKey, model, limitedReports, question);
     } else if (apiType === 'custom') {
       if (!baseURL) {
-        return res.status(400).json({ 
-          success: false, 
-          message: '自定義 API 需要提供 API 基礎 URL' 
-        });
+        return res.status(400).json({ success: false, message: '自定義 API 需要提供 API 基礎 URL' });
       }
       result = await analyzeClassWithCustom(apiKey, baseURL, model, limitedReports, question);
     } else if (apiType === 'openai') {
       result = await analyzeClassWithOpenAI(apiKey, model, limitedReports, question);
     } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: '未知的 API 類型: ' + apiType 
-      });
+      return res.status(400).json({ success: false, message: '未知的 API 類型: ' + apiType });
     }
 
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Analyze class error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || '分析失敗'
-    });
+    res.status(500).json({ success: false, message: error.message || '分析失敗' });
   }
 });
 
-// ============ Gemini API 函數 ============
-
-// 驗證和修正 Gemini 模型名稱
 function normalizeGeminiModelName(modelName) {
   if (!modelName) return 'gemini-2.0-flash';
-  
-  // 移除 models/ 前綴（如果存在）
   let name = modelName.startsWith('models/') ? modelName.substring(7) : modelName;
-  
-  // 常見的模型名稱映射
   const modelMap = {
     'gemini-1.5-flash': 'gemini-1.5-flash-latest',
     'gemini-1.5-pro': 'gemini-1.5-pro-latest',
     'gemini-1.0-pro': 'gemini-1.0-pro-latest',
     'gemini-pro': 'gemini-1.0-pro-latest',
   };
-  
-  // 如果名稱在映射中，使用映射後的名稱
-  if (modelMap[name]) {
-    return modelMap[name];
-  }
-  
-  // 如果名稱已經包含 -latest 或版本號，直接返回
-  if (name.includes('-latest') || /-\d{3}$/.test(name)) {
-    return name;
-  }
-  
-  // 否則返回原始名稱
+  if (modelMap[name]) return modelMap[name];
+  if (name.includes('-latest') || /-\d{3}$/.test(name)) return name;
   return name;
 }
 
 async function testGeminiConnection(apiKey, modelName = 'gemini-2.0-flash') {
-  // 修正模型名稱
   const normalizedModelName = normalizeGeminiModelName(modelName);
   const model = `models/${normalizedModelName}`;
   
@@ -267,7 +196,7 @@ async function testGeminiConnection(apiKey, modelName = 'gemini-2.0-flash') {
       success: true,
       message: isModelAvailable 
         ? `Gemini API 連接成功！模型 "${normalizedModelName}" 可用`
-        : `API 連接成功！但模型 "${normalizedModelName}" 可能不可用。可用模型: ${availableModels.slice(0, 3).join(', ')}`,
+        : `API 連接成功！但模型 "${normalizedModelName}" 可能不可用`,
       model: normalizedModelName
     };
   } catch (error) {
@@ -276,9 +205,10 @@ async function testGeminiConnection(apiKey, modelName = 'gemini-2.0-flash') {
 }
 
 async function extractWithGemini(apiKey, modelName, fileData, text, fileType) {
-  // 修正模型名稱
   const normalizedModelName = normalizeGeminiModelName(modelName);
   const model = `models/${normalizedModelName}`;
+  
+  console.log('extractWithGemini:', { model, fileType, hasFileData: !!fileData, hasText: !!text });
   
   const prompt = `你是一個專業的OCR文字識別助手。請從圖片或文檔中提取學生的作文文字。
 
@@ -297,11 +227,18 @@ async function extractWithGemini(apiKey, modelName, fileData, text, fileType) {
 }`;
 
   let requestBody;
-  let isPdf = fileType && fileType.includes('pdf');
+  
+  // 關鍵判斷：檢查 fileType 是否為圖片或 PDF
+  const isImage = fileType && fileType.startsWith('image/');
+  const isPDF = fileType && (fileType === 'application/pdf' || fileType.includes('pdf'));
+  
+  console.log('Type check:', { isImage, isPDF, fileType });
 
-  if (fileData && (fileType?.startsWith('image/') || isPdf)) {
-    // 圖片或 PDF 處理 - 使用 Gemini 的多模態功能
-    const mimeType = isPdf ? 'application/pdf' : fileType;
+  if (fileData && (isImage || isPDF)) {
+    // 使用 inline_data 模式 - Token 消耗大幅降低
+    const mimeType = isPDF ? 'application/pdf' : fileType;
+    console.log('Using inline_data mode with mimeType:', mimeType);
+    
     requestBody = {
       contents: [{
         parts: [
@@ -321,7 +258,8 @@ async function extractWithGemini(apiKey, modelName, fileData, text, fileType) {
       }
     };
   } else {
-    // 文字處理
+    // 純文字模式 - Token 消耗高
+    console.log('Using text mode');
     const content = text || '';
     requestBody = {
       contents: [{
@@ -369,7 +307,6 @@ async function extractWithGemini(apiKey, modelName, fileData, text, fileType) {
 }
 
 async function gradeWithGemini(apiKey, modelName, essayText, question, customCriteria) {
-  // 修正模型名稱
   const normalizedModelName = normalizeGeminiModelName(modelName);
   const model = `models/${normalizedModelName}`;
   
@@ -413,7 +350,6 @@ async function gradeWithGemini(apiKey, modelName, essayText, question, customCri
 }
 
 async function analyzeClassWithGemini(apiKey, modelName, reports, question) {
-  // 修正模型名稱
   const normalizedModelName = normalizeGeminiModelName(modelName);
   const model = `models/${normalizedModelName}`;
   
@@ -497,8 +433,6 @@ ${reports.map(r => `- ${r.studentWork?.name || '未命名'}: 總分${r.totalScor
   return JSON.parse(jsonContent);
 }
 
-// ============ OpenAI API 函數 ============
-
 async function testOpenAIConnection(apiKey, modelName = 'gpt-4o') {
   try {
     const response = await fetch('https://api.openai.com/v1/models', {
@@ -519,7 +453,7 @@ async function testOpenAIConnection(apiKey, modelName = 'gpt-4o') {
       success: true,
       message: isModelAvailable 
         ? `OpenAI API 連接成功！模型 "${modelName}" 可用`
-        : `API 連接成功！但模型 "${modelName}" 可能不可用。可用模型: ${availableModels.slice(0, 3).join(', ')}`,
+        : `API 連接成功！但模型 "${modelName}" 可能不可用`,
       model: modelName
     };
   } catch (error) {
@@ -721,11 +655,8 @@ ${reports.map(r => `- ${r.studentWork?.name || '未命名'}: 總分${r.totalScor
   return JSON.parse(content);
 }
 
-// ============ 自定義 API 函數（支持任何 OpenAI 兼容 API） ============
-
 async function testCustomConnection(apiKey, baseURL, modelName) {
   try {
-    // 確保 baseURL 以 /v1 結尾
     const normalizedURL = baseURL.endsWith('/v1') ? baseURL : `${baseURL}/v1`;
     
     const response = await fetch(`${normalizedURL}/models`, {
@@ -746,7 +677,7 @@ async function testCustomConnection(apiKey, baseURL, modelName) {
       success: true,
       message: isModelAvailable 
         ? `API 連接成功！模型 "${modelName}" 可用`
-        : `API 連接成功！但模型 "${modelName}" 可能不可用。可用模型: ${availableModels.slice(0, 3).join(', ')}`,
+        : `API 連接成功！但模型 "${modelName}" 可能不可用`,
       model: modelName
     };
   } catch (error) {
@@ -951,44 +882,27 @@ ${reports.map(r => `- ${r.studentWork?.name || '未命名'}: 總分${r.totalScor
   return JSON.parse(content);
 }
 
-// ============ 輔助函數 ============
-
 function handleGeminiError(error, modelName) {
   const message = error.message || '未知錯誤';
   
   if (message.includes('quota') || message.includes('exceeded') || message.includes('429')) {
-    return { 
-      success: false, 
-      message: 'Gemini API 配額已用完，請檢查您的 Google AI Studio 配額或稍後再試' 
-    };
+    return { success: false, message: 'Gemini API 配額已用完，請檢查您的 Google AI Studio 配額或稍後再試' };
   }
   
   if (message.includes('not found') || message.includes('model')) {
-    return { 
-      success: false, 
-      message: `模型 "${modelName}" 不存在或無權訪問，請確認模型名稱正確` 
-    };
+    return { success: false, message: `模型 "${modelName}" 不存在或無權訪問，請確認模型名稱正確` };
   }
   
   if (message.includes('401') || message.includes('Unauthorized') || message.includes('API key not valid')) {
-    return { 
-      success: false, 
-      message: 'API 密鑰無效，請檢查您的 Gemini API 密鑰是否正確' 
-    };
+    return { success: false, message: 'API 密鑰無效，請檢查您的 Gemini API 密鑰是否正確' };
   }
   
   if (message.includes('fetch') || message.includes('network') || message.includes('ECONNREFUSED')) {
-    return { 
-      success: false, 
-      message: '無法連接到 Gemini 服務器，請檢查網絡連接' 
-    };
+    return { success: false, message: '無法連接到 Gemini 服務器，請檢查網絡連接' };
   }
   
-  if (message.includes('token') || message.includes('Token')) {
-    return { 
-      success: false, 
-      message: '輸入內容太長，超過了 Token 限制。請嘗試：1) 使用更小的文件 2) 分段處理 3) 使用支持更大上下文的模型' 
-    };
+  if (message.includes('token') || message.includes('Token') || message.includes('1048576')) {
+    return { success: false, message: '輸入內容太長，超過了 Token 限制。請嘗試：1) 使用更小的文件 2) 分段處理 3) 使用支持更大上下文的模型' };
   }
   
   return { success: false, message: `連接失敗: ${message}` };
@@ -998,31 +912,19 @@ function handleOpenAIError(error, modelName) {
   const message = error.message || '未知錯誤';
   
   if (message.includes('quota') || message.includes('exceeded') || message.includes('429')) {
-    return { 
-      success: false, 
-      message: 'API 配額已用完，請檢查您的賬戶配額' 
-    };
+    return { success: false, message: 'API 配額已用完，請檢查您的賬戶配額' };
   }
   
   if (message.includes('not found') || message.includes('model')) {
-    return { 
-      success: false, 
-      message: `模型 "${modelName}" 不存在或無權訪問` 
-    };
+    return { success: false, message: `模型 "${modelName}" 不存在或無權訪問` };
   }
   
   if (message.includes('401') || message.includes('Unauthorized')) {
-    return { 
-      success: false, 
-      message: 'API 密鑰無效，請檢查您的 API 密鑰' 
-    };
+    return { success: false, message: 'API 密鑰無效，請檢查您的 API 密鑰' };
   }
   
   if (message.includes('token') || message.includes('Token')) {
-    return { 
-      success: false, 
-      message: '輸入內容太長，超過了 Token 限制。請嘗試：1) 使用更小的文件 2) 分段處理 3) 使用支持更大上下文的模型' 
-    };
+    return { success: false, message: '輸入內容太長，超過了 Token 限制。請嘗試：1) 使用更小的文件 2) 分段處理 3) 使用支持更大上下文的模型' };
   }
   
   return { success: false, message: `連接失敗: ${message}` };
@@ -1174,7 +1076,6 @@ function parseGradingResult(content, essayText) {
   };
 }
 
-// 啟動服務器
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`========================================`);
