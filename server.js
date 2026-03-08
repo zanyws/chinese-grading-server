@@ -2014,11 +2014,11 @@ function parseGradingResult(content, essayText, gradingMode = 'secondary') {
 
   if (gradingMode === 'primary') {
     const grading = {
-      content: Math.max(1, Math.min(4, Math.round(result.grading?.content || 3))) as 1|2|3|4,
-      feeling: Math.max(1, Math.min(4, Math.round(result.grading?.feeling || 3))) as 1|2|3|4,
-      structure: Math.max(1, Math.min(4, Math.round(result.grading?.structure || 3))) as 1|2|3|4,
-      language: Math.max(1, Math.min(4, Math.round(result.grading?.language || 3))) as 1|2|3|4,
-      format: Math.max(1, Math.min(4, Math.round(result.grading?.format || 3))) as 1|2|3|4,
+      content: Math.max(1, Math.min(4, Math.round(result.grading?.content || 3))),
+      feeling: Math.max(1, Math.min(4, Math.round(result.grading?.feeling || 3))),
+      structure: Math.max(1, Math.min(4, Math.round(result.grading?.structure || 3))),
+      language: Math.max(1, Math.min(4, Math.round(result.grading?.language || 3))),
+      format: Math.max(1, Math.min(4, Math.round(result.grading?.format || 3))),
     };
 
     const scoreTable = {
